@@ -86,6 +86,10 @@ def handle_pretty_print_nvrs(opts):
     for item in get_nvrs(opts.builds_from_file):
         print (item)
 
+def handle_pretty_print_pkgs(opts):
+    for item in get_nvrs(opts.builds_from_file):
+        print (kobo.rpmlib.parse_nvr(item)['name'])
+
 def handle_missing_builds(opts):
     nvrs = get_nvrs(opts.builds_from_file)
     koji_session = get_koji_session(opts)
@@ -121,7 +125,9 @@ if __name__ == "__main__":
     parser.add_option("--find-missing-builds", help="Checks whether builds are present in given koji instance",
         action="store_const", const="missing", dest="action")
     parser.add_option("--print-builds", help="Prints builds in a koji-compat format",
-        action="store_const", const="print", dest="action")
+        action="store_const", const="nvrs", dest="action")
+    parser.add_option("--print-packages", help="Prints package names not nvrs",
+        action="store_const", const="pkgs", dest="action")
     parser.add_option("--import-builds", help="Import builds",
         action="store_const", const="import", dest="action")
     parser.add_option("--import-threads",
@@ -150,8 +156,11 @@ if __name__ == "__main__":
         logger.setLevel(logging.DEBUG)
 
 
-    if opts.action == "print":
+    if opts.action == "nvrs":
         handle_pretty_print_nvrs(opts)
+    
+    if opts.action == "pkgs":
+        handle_pretty_print_pkgs(opts)
 
     elif opts.action == "missing":
         handle_missing_builds(opts) 

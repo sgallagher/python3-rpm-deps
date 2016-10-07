@@ -48,10 +48,22 @@ class ImportThread(WorkerThread):
         workdir = os.path.join(opts.workdir, nvr) # store it under $workdir/$build
         shutil.rmtree(workdir, ignore_errors=True)
         os.makedirs(workdir)
+        self.pool.log_info("Downloading nvr %s from koji-profile %s" % (nvr, opts.koji_profile))
         ret, out = kobo.shortcuts.run("koji --profile '%s' download-build %s" % (opts.koji_profile, nvr), workdir=workdir)
+        if opts.koji_secondary_profile:
+            for prof in opts.koji_secondary_profile:
+                try:
+                    self.pool.log_info("Downloading nvr %s from secondary koji-profile %s" % (nvr, prof))
+                    ret, out = kobo.shortcuts.run("koji --profile '%s' download-build %s" % (prof, nvr), workdir=workdir)
+                except RuntimeError:
+                    self.pool.log_warning("Failed to import nvr %s from secondary koji-profile %s" % (nvr, prof))
 
         for rpm in glob.glob("%s/*" % workdir):
             self.pool.log_debug("Importing rpm %s" % rpm)
+            nvra = os.path.basename(rpm).replace(".rpm","")
+            if opts.skip_arch and kobo.rpmlib.parse_nvra(nvra)['arch'] in opts.skip_arch:
+                self.pool.log_debug("Skipping import of nvra %s since arch is in options.skip_arch=%s" % (nvra, opts.skip_arch))
+                continue
             ret, out = kobo.shortcuts.run("koji --profile '%s' import --create-build --src-epoch '%s' %s" % (opts.koji_dest_profile, epoch, rpm))
         self.pool.log_debug("Removing workdir %s" % workdir)
 
@@ -139,6 +151,8 @@ if __name__ == "__main__":
 
     parser.add_option("--koji-profile", default="koji")
     parser.add_option("--koji-dest-profile", default="koji", help="profile of Koji import-target")
+    parser.add_option("--koji-secondary-profile", action="append", help="Aditional profile(s) to get builds from")
+    parser.add_option("--skip-arch", action="append", help="Skip import of given architecture(s)")
     parser.add_option("--workdir", help="This is required for import of builds", default="/tmp/import")
     parser.add_option("--debug", action="store_true", help="Print debug info such as individual rpm imports")
     opts, args = parser.parse_args()
